@@ -179,3 +179,17 @@ class PerformanceViewSet(viewsets.ModelViewSet):
             return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
         except PerformanceReview.DoesNotExist:
             return Response({"error": "Review not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['get'])
+    def average_rating(self, request, pk=None):
+        try:
+            employee = Employee.objects.get(id=pk)
+            average = PerformanceReview.objects.filter(employee=employee).aggregate(avg_rating=Avg('rating'))['avg_rating']
+
+            if average is None:
+                return Response({"message": f"{employee.name} has no performance reviews yet."}, status=status.HTTP_200_OK)
+
+            return Response({"employee_id": employee.id, "employee_name": employee.name, "average_rating": round(average, 2)}, status=status.HTTP_200_OK)
+
+        except Employee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
