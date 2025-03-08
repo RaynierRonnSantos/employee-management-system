@@ -12,6 +12,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class SalaryHistorySerializer(serializers.ModelSerializer):
+    employee_name = serializers.CharField(source='employee.name', read_only=True)
+    
     class Meta:
         model = SalaryHistory
         fields = '__all__'
