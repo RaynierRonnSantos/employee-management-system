@@ -4,6 +4,9 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import Employee, SalaryHistory, PerformanceReview, Attendance
 from .serializers import EmployeeSerializer, SalaryHistorySerializer, PerformanceReviewSerializer, AttendanceSerializer
+from django.utils.timezone import now
+from django.db.models import Sum
+
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all()
@@ -187,83 +190,140 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def employee_attendance(self, request, pk=None):
         """Fetch attendance records for a specific employee."""
-        employee = get_object_or_404(Employee, pk=pk)
+        employee = Employee.objects.filter(pk=pk).first()
+
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
         attendance = Attendance.objects.filter(employee=employee)
+        if not attendance.exists():
+            return Response({"message": "No attendance records found for this employee."}, status=status.HTTP_404_NOT_FOUND)
+        
         serializer = AttendanceSerializer(attendance, many=True)
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def mark_attendance(self, request, pk=None):
-        """Mark an employee's attendance."""
-        employee = get_object_or_404(Employee, pk=pk)
-        date = request.data.get('date')
-        status = request.data.get('status', 'present')
-        check_in_time = request.data.get('check_in_time')
-        check_out_time = request.data.get('check_out_time')
-        overtime_hours = request.data.get('overtime_hours', 0)
+        """Mark check-in or check-out for an employee"""
+        employee = Employee.objects.filter(pk=pk).first()
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        attendance = Attendance.objects.create(
+        today = now().date()
+        attendance, created = Attendance.objects.get_or_create(
             employee=employee,
-            date=date,
-            status=status,
-            check_in_time=check_in_time,
-            check_out_time=check_out_time,
-            overtime_hours=overtime_hours
+            date=today,
+            defaults={'check_in_time': now().time(), 'status': 'Present'}
         )
 
-        return Response(AttendanceSerializer(attendance).data, status=status.HTTP_201_CREATED)
+        if created:
+            return Response({
+                "message": "Check-in recorded",
+                "attendance": AttendanceSerializer(attendance).data
+            }, status=status.HTTP_201_CREATED)
+
+        # If already checked in, mark check-out
+        if attendance.check_out_time:
+            return Response({"error": "Check-out already recorded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        attendance.check_out_time = now().time()
+
+        # Calculate overtime hours (assuming 8 hours is normal shift)
+        check_in_time = attendance.check_in_time
+        if check_in_time:
+            time_difference = (now() - now().replace(hour=check_in_time.hour, minute=check_in_time.minute)).total_seconds()
+            hours_worked = time_difference / 3600  # Convert seconds to hours
+            overtime = max(0, hours_worked - 8)  # Subtract normal working hours
+            attendance.overtime_hours = overtime
+
+        attendance.save()
+
+        return Response({
+            "message": "Check-out recorded",
+            "attendance": AttendanceSerializer(attendance).data
+        }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def late_count(self, request, pk=None):
         """Count the number of times an employee was late."""
-        employee = get_object_or_404(Employee, pk=pk)
+        employee = Employee.objects.filter(pk=pk).first()
+        
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
         late_days = Attendance.objects.filter(employee=employee, status='late').count()
         return Response({"late_count": late_days})
 
     @action(detail=True, methods=['get'])
     def overtime_hours(self, request, pk=None):
         """Calculate total overtime hours for an employee."""
-        employee = get_object_or_404(Employee, pk=pk)
-        total_overtime = Attendance.objects.filter(employee=employee).aggregate(total=models.Sum('overtime_hours'))['total'] or 0
+        employee = Employee.objects.filter(pk=pk).first()
+        
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        total_overtime = Attendance.objects.filter(employee=employee).aggregate(total=Sum('overtime_hours'))['total'] or 0
         return Response({"overtime_hours": total_overtime})
 
     @action(detail=True, methods=['get'])
     def leave_history(self, request, pk=None):
         """Fetch an employee's leave history."""
-        employee = get_object_or_404(Employee, pk=pk)
+        employee = Employee.objects.filter(pk=pk).first()
+        
+        if not employee:
+            return Response({"error": "Employee not found"}, status=404)
+        
         leaves = Attendance.objects.filter(employee=employee, status='leave')
-        return Response(AttendanceSerializer(leaves, many=True).data)
+
+        if not leaves.exists():
+            return Response({"message": "No leave records found"}, status=404)
+
+        return Response(AttendanceSerializer(leaves, many=True).data, status=200)
 
     @action(detail=True, methods=['post'])
     def request_leave(self, request, pk=None):
         """Request leave for an employee."""
-        employee = get_object_or_404(Employee, pk=pk)
-        date = request.data.get('date')
+        employee = Employee.objects.filter(pk=pk).first()
+        
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        date = request.data.get('date')
         if not date:
             return Response({"error": "Date is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         leave_record = Attendance.objects.create(employee=employee, date=date, status='leave')
-
         return Response(AttendanceSerializer(leave_record).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['patch'])
     def approve_leave(self, request, pk=None):
         """Approve or reject a leave request."""
-        employee = get_object_or_404(Employee, pk=pk)
+        employee = Employee.objects.filter(pk=pk).first()
+
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
         date = request.data.get('date')
         approval = request.data.get('approval')
 
-        try:
-            leave_record = Attendance.objects.get(employee=employee, date=date, status='leave')
-            if approval == "approve":
-                leave_record.status = "leave"
-                leave_record.save()
-                return Response({"message": "Leave approved"})
-            elif approval == "reject":
-                leave_record.delete()
-                return Response({"message": "Leave rejected"})
-            else:
-                return Response({"error": "Invalid approval status"}, status=status.HTTP_400_BAD_REQUEST)
-        except Attendance.DoesNotExist:
-            return Response({"error": "Leave request not found"}, status=status.HTTP_404_NOT_FOUND)
+        leave_record = Attendance.objects.filter(employee=employee, date=date, status='leave').first()
+
+        if not leave_record:
+            return Response(
+                {
+                    "error": "Leave request not found",
+                    "required_fields": {
+                        "date": "YYYY-MM-DD (e.g., 2025-03-08)",
+                        "approval": "approve or reject"
+                    }
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if approval == "approve":
+            leave_record.status = "on leave"  # ✅ Set to "approved" instead of "leave"
+            leave_record.save()
+            return Response({"message": "Leave approved"})
+        elif approval == "reject":
+            leave_record.delete()
+            return Response({"message": "Leave rejected"})
+        else:
+            return Response({"error": "Invalid approval status"}, status=status.HTTP_400_BAD_REQUEST)
