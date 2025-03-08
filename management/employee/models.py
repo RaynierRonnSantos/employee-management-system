@@ -5,7 +5,6 @@ class Employee(models.Model):
     department = models.CharField(max_length=100)
     position = models.CharField(max_length=100)
     salary = models.FloatField()
-    mentor = models.CharField(max_length=100, blank=True, null=True)
     active = models.BooleanField(default=True)
     archived = models.BooleanField(default=False)
 

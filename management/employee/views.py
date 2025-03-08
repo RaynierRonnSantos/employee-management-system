@@ -31,16 +31,6 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response({'status': 'Transfer rejected'}, status=status.HTTP_200_OK)
         return Response({'error': 'Invalid approval status'}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['patch'])
-    def assign_mentor(self, request, pk=None):
-        employee = self.get_object()
-        mentor = request.data.get('mentor')
-        if mentor:
-            employee.mentor = mentor
-            employee.save()
-            return Response({"message": f"Mentor {mentor} assigned to {employee.name}"})
-        return Response({'error': 'Mentor name not provided'}, status=status.HTTP_400_BAD_REQUEST)
-
     @action(detail=True, methods=['post'])
     def deactivate(self, request, pk=None):
         employee = self.get_object()
