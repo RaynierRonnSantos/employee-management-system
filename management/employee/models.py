@@ -28,5 +28,6 @@ class TrainingSession(models.Model):
     completed = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.name, f"{self.employee.name} Review ({self.rating})", f"{self.employee.name} - {self.course_name}"
+        return f"{self.employee.name} - {self.course_name} ({'Completed' if self.completed else 'Not Completed'})"
+
     
