@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Employee, SalaryHistory, PerformanceReview, TrainingSession
+from .models import Employee, SalaryHistory, PerformanceReview
 
 class EmployeeSerializer(serializers.ModelSerializer):
     salary = serializers.SerializerMethodField()
@@ -13,7 +13,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 class SalaryHistorySerializer(serializers.ModelSerializer):
     employee_name = serializers.CharField(source='employee.name', read_only=True)
-    
+
     class Meta:
         model = SalaryHistory
         fields = '__all__'
@@ -22,8 +22,3 @@ class PerformanceReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = PerformanceReview
         fields = '__all__'
-
-class TrainingSessionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = TrainingSession
-        fields = ['id', 'course_name', 'date_enrolled', 'completed']

@@ -2,8 +2,8 @@ from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import Employee, SalaryHistory, PerformanceReview, TrainingSession
-from .serializers import EmployeeSerializer, SalaryHistorySerializer, PerformanceReviewSerializer, TrainingSessionSerializer
+from .models import Employee, SalaryHistory, PerformanceReview
+from .serializers import EmployeeSerializer, SalaryHistorySerializer, PerformanceReviewSerializer
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all()
@@ -147,8 +147,8 @@ class PerformanceViewSet(viewsets.ModelViewSet):
         try:
             employee = Employee.objects.get(id=pk)
             reviews = PerformanceReview.objects.filter(employee=employee)
-            serializer = PerformanceReviewSerializer(reviews, many=True)
-            return Response(serializer.data)
+            data = [{"employee_id": review.employee.id, "employee_name": review.employee.name, "review": review.review, "rating": review.rating} for review in reviews]
+            return Response(data)
         except Employee.DoesNotExist:
             return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -174,7 +174,7 @@ class PerformanceViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def top_performers(self, request):
         top_performers = PerformanceReview.objects.filter(rating__gte=9).select_related('employee')
-        data = [{"employee": review.employee.name, "rating": review.rating} for review in top_performers]
+        data = [{"employee_id": review.employee.id, "employee_name": review.employee.name, "rating": review.rating} for review in top_performers]
         return Response(data)
 
     @action(detail=True, methods=['delete'])
@@ -189,58 +189,3 @@ class PerformanceViewSet(viewsets.ModelViewSet):
             return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
         except PerformanceReview.DoesNotExist:
             return Response({"error": "Review not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-class TrainingViewSet(viewsets.ModelViewSet):
-    queryset = TrainingSession.objects.all()
-    serializer_class = TrainingSessionSerializer
-
-    @action(detail=True, methods=['get'])
-    def training_sessions(self, request, pk=None):
-        try:
-            employee = Employee.objects.get(pk=pk)
-        except Employee.DoesNotExist:
-            return Response({"error": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        sessions = TrainingSession.objects.filter(employee=employee)
-        if not sessions.exists():
-            return Response({"message": "No training sessions found for this employee."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = TrainingSessionSerializer(sessions, many=True)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['post'])
-    def enroll_training(self, request, pk=None):
-        try:
-            employee = Employee.objects.get(pk=pk)
-        except Employee.DoesNotExist:
-            return Response({"error": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        course_name = request.data.get('course_name')
-        date_enrolled = request.data.get('date_enrolled')
-
-        if not course_name or not date_enrolled:
-            return Response({"error": "Session name and date attended are required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        session, created = TrainingSession.objects.get_or_create(
-            employee=employee,
-            course_name=course_name,
-            date_enrolled=date_enrolled
-        )
-
-        if not created:
-            return Response({"message": "Training session already exists."}, status=status.HTTP_409_CONFLICT)
-
-        serializer = TrainingSessionSerializer(session)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    @action(detail=True, methods=['patch'])
-    def mark_as_completed(self, request, pk=None):
-        try:
-            session = TrainingSession.objects.get(pk=pk)
-        except TrainingSession.DoesNotExist:
-            return Response({"error": "Training session not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        session.completed = True
-        session.save()
-        return Response({"message": "Training session marked as completed"})
-
