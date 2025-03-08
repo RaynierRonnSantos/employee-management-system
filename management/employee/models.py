@@ -9,6 +9,10 @@ class Employee(models.Model):
     active = models.BooleanField(default=True)
     archived = models.BooleanField(default=False)
 
+    def save(self, *args, **kwargs):
+        self.salary = round(self.salary, 2)  # Automatically round on save
+        super(Employee, self).save(*args, **kwargs)
+
 class SalaryHistory(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='salary_history')
     previous_salary = models.DecimalField(max_digits=10, decimal_places=2)
