@@ -13,11 +13,17 @@ class Employee(models.Model):
         self.salary = round(self.salary, 2)  # Automatically round on save
         super(Employee, self).save(*args, **kwargs)
 
+    def __str__(self):
+        return f"{self.name} ({self.position} - {self.department})"
+
 class SalaryHistory(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='salary_history')
     previous_salary = models.DecimalField(max_digits=10, decimal_places=2)
     new_salary = models.DecimalField(max_digits=10, decimal_places=2)
     changed_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.employee.name} - Salary Change: {self.previous_salary} → {self.new_salary}"
 
 class PerformanceReview(models.Model):
     employee = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='reviews')
@@ -26,6 +32,5 @@ class PerformanceReview(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.employee.name} - {self.course_name} ({'Completed' if self.completed else 'Not Completed'})"
-
+        return f"{self.employee.name} - Review ({self.rating}/10)"
     
