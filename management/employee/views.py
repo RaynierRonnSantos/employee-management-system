@@ -2,8 +2,8 @@ from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import Employee, SalaryHistory, PerformanceReview
-from .serializers import EmployeeSerializer, SalaryHistorySerializer, PerformanceReviewSerializer
+from .models import Employee, SalaryHistory, PerformanceReview, Attendance
+from .serializers import EmployeeSerializer, SalaryHistorySerializer, PerformanceReviewSerializer, AttendanceSerializer
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all()
@@ -179,3 +179,91 @@ class PerformanceViewSet(viewsets.ModelViewSet):
             return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
         except PerformanceReview.DoesNotExist:
             return Response({"error": "Review not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class AttendanceViewSet(viewsets.ModelViewSet):
+    queryset = Attendance.objects.all()
+    serializer_class = AttendanceSerializer
+
+    @action(detail=True, methods=['get'])
+    def employee_attendance(self, request, pk=None):
+        """Fetch attendance records for a specific employee."""
+        employee = get_object_or_404(Employee, pk=pk)
+        attendance = Attendance.objects.filter(employee=employee)
+        serializer = AttendanceSerializer(attendance, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def mark_attendance(self, request, pk=None):
+        """Mark an employee's attendance."""
+        employee = get_object_or_404(Employee, pk=pk)
+        date = request.data.get('date')
+        status = request.data.get('status', 'present')
+        check_in_time = request.data.get('check_in_time')
+        check_out_time = request.data.get('check_out_time')
+        overtime_hours = request.data.get('overtime_hours', 0)
+
+        attendance = Attendance.objects.create(
+            employee=employee,
+            date=date,
+            status=status,
+            check_in_time=check_in_time,
+            check_out_time=check_out_time,
+            overtime_hours=overtime_hours
+        )
+
+        return Response(AttendanceSerializer(attendance).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'])
+    def late_count(self, request, pk=None):
+        """Count the number of times an employee was late."""
+        employee = get_object_or_404(Employee, pk=pk)
+        late_days = Attendance.objects.filter(employee=employee, status='late').count()
+        return Response({"late_count": late_days})
+
+    @action(detail=True, methods=['get'])
+    def overtime_hours(self, request, pk=None):
+        """Calculate total overtime hours for an employee."""
+        employee = get_object_or_404(Employee, pk=pk)
+        total_overtime = Attendance.objects.filter(employee=employee).aggregate(total=models.Sum('overtime_hours'))['total'] or 0
+        return Response({"overtime_hours": total_overtime})
+
+    @action(detail=True, methods=['get'])
+    def leave_history(self, request, pk=None):
+        """Fetch an employee's leave history."""
+        employee = get_object_or_404(Employee, pk=pk)
+        leaves = Attendance.objects.filter(employee=employee, status='leave')
+        return Response(AttendanceSerializer(leaves, many=True).data)
+
+    @action(detail=True, methods=['post'])
+    def request_leave(self, request, pk=None):
+        """Request leave for an employee."""
+        employee = get_object_or_404(Employee, pk=pk)
+        date = request.data.get('date')
+
+        if not date:
+            return Response({"error": "Date is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        leave_record = Attendance.objects.create(employee=employee, date=date, status='leave')
+
+        return Response(AttendanceSerializer(leave_record).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch'])
+    def approve_leave(self, request, pk=None):
+        """Approve or reject a leave request."""
+        employee = get_object_or_404(Employee, pk=pk)
+        date = request.data.get('date')
+        approval = request.data.get('approval')
+
+        try:
+            leave_record = Attendance.objects.get(employee=employee, date=date, status='leave')
+            if approval == "approve":
+                leave_record.status = "leave"
+                leave_record.save()
+                return Response({"message": "Leave approved"})
+            elif approval == "reject":
+                leave_record.delete()
+                return Response({"message": "Leave rejected"})
+            else:
+                return Response({"error": "Invalid approval status"}, status=status.HTTP_400_BAD_REQUEST)
+        except Attendance.DoesNotExist:
+            return Response({"error": "Leave request not found"}, status=status.HTTP_404_NOT_FOUND)

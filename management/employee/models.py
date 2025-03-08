@@ -32,4 +32,21 @@ class PerformanceReview(models.Model):
 
     def __str__(self):
         return f"{self.employee.name} - Review ({self.rating}/10)"
+
+class Attendance(models.Model):
+    STATUS_CHOICES = [
+        ('present', 'Present'),
+        ('absent', 'Absent'),
+        ('late', 'Late'),
+        ('leave', 'On Leave'),
+    ]
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="attendance_records")
+    date = models.DateField()
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='present')
+    check_in_time = models.TimeField(null=True, blank=True)
+    check_out_time = models.TimeField(null=True, blank=True)
+    overtime_hours = models.DecimalField(max_digits=5, decimal_places=2, default=0.0)
     
+    def __str__(self):
+        return f"{self.employee.name} - {self.date} ({self.status})"
