@@ -9,8 +9,10 @@ from django.db.models import Sum
 
 
 class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
+
+    def get_queryset(self):
+        return Employee.objects.filter(archived=False)
 
     @action(detail=True, methods=['patch'])
     def request_department_transfer(self, request, pk=None):
@@ -18,6 +20,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         new_department = request.data.get('new_department')
         if new_department:
             employee.department = new_department
+            employee.status = 'pending_transfer'  # Add status tracking
             employee.save()
             return Response({'status': 'Transfer requested successfully'}, status=status.HTTP_200_OK)
         return Response({'error': 'New department not provided'}, status=status.HTTP_400_BAD_REQUEST)
@@ -70,18 +73,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(archived_employees, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
-    @action(detail=True, methods=['delete'])
+    @action(detail=True, methods=['post'])
     def permanent(self, request, pk=None):
         employee = self.get_object()
         approval = request.data.get('approval')
         if approval == 'approve':
             employee.delete()
             return Response({"message": f"{employee.name} permanently deleted"}, status=status.HTTP_200_OK)
-        return Response({"error": "HR approval required"}, status=status.HTTP_400_BAD_REQUEST) 
+        return Response({"error": "HR approval required"}, status=status.HTTP_400_BAD_REQUEST)
 
 class SalaryViewSet(viewsets.ModelViewSet):
-    queryset = SalaryHistory.objects.all()
     serializer_class = SalaryHistorySerializer
+
+    def get_queryset(self):
+        return SalaryHistory.objects.filter(employee__archived=False)
 
     @action(detail=True, methods=['get'])
     def salary_history(self, request, pk=None):
@@ -117,15 +122,16 @@ class SalaryViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response({
-                            "error": "New salary not provided",
-                            "required_fields": {
-                                "new_salary": "New salary amount is required"
-                            }
+                            "new_salary":  [
+                                "This field is required."
+                            ]
                         }, status=status.HTTP_400_BAD_REQUEST)
 
 class PerformanceViewSet(viewsets.ModelViewSet):
-    queryset = PerformanceReview.objects.all()
     serializer_class = PerformanceReviewSerializer
+
+    def get_queryset(self):
+            return PerformanceReview.objects.filter(employee__archived=False)
 
     @action(detail=True, methods=['get'])
     def performance_reviews(self, request, pk=None):
@@ -146,11 +152,12 @@ class PerformanceViewSet(viewsets.ModelViewSet):
 
             if not review or not rating:
                 return Response({
-                                    "error": "Review and rating are required",
-                                    "required_fields": {
-                                        "review": "This field is required",
-                                        "rating": "On a scaling of 1 (lowest) - 10 (Highest)"
-                                    }    
+                                    "review": [
+                                                "This field is required."
+                                            ],
+                                    "rating": [
+                                                "This field is required."
+                                            ],  
                                 }, status=status.HTTP_400_BAD_REQUEST)
 
             performance = PerformanceReview.objects.create(
@@ -182,8 +189,10 @@ class PerformanceViewSet(viewsets.ModelViewSet):
             return Response({"error": "Review not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class AttendanceViewSet(viewsets.ModelViewSet):
-    queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
+
+    def get_queryset(self):
+            return Attendance.objects.filter(employee__archived=False)
 
     @action(detail=True, methods=['get'])
     def employee_attendance(self, request, pk=None):
@@ -289,10 +298,9 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         date = request.data.get('date')
         if not date:
             return Response({
-                                "error": "Date is required",
-                                "required_fields": {
-                                    "date": "YYYY-MM-DD"
-                                }    
+                                "date": [
+                                    "This field is required."
+                                    ]
                             }, status=status.HTTP_400_BAD_REQUEST)
 
         leave_record = Attendance.objects.create(employee=employee, date=date, status='leave')
@@ -314,11 +322,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if not leave_record:
             return Response(
                 {
-                    "error": "Leave request not found",
-                    "required_fields": {
-                        "date": "YYYY-MM-DD",
-                        "approval": "approve or reject"
-                    }
+                    "date": [
+                        "This field is required."
+                    ],
+                    "approval": [
+                        "This field is required."
+                    ]
                 }, status=status.HTTP_404_NOT_FOUND)
 
         if approval == "approve":
@@ -330,10 +339,9 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return Response({"message": "Leave rejected"})
         else:
             return Response({
-                                "error": "Invalid approval status",
-                                "required_fields": {
-                                    "approval": "approve or reject"
-                                }
+                                "approval": [
+                                    "This field is required."
+                                ]
                             }, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['delete'])
@@ -348,10 +356,9 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         if not dates or not isinstance(dates, list):
             return Response({
-                "error": "Invalid input",
-                "required_fields": {
-                    "dates": ["YYYY-MM-DD", "YYYY-MM-DD"]
-                }
+                    "dates": [
+                        "This field is required."
+                    ]
             }, status=status.HTTP_400_BAD_REQUEST)
 
         deleted_count, _ = Attendance.objects.filter(employee=employee, date__in=dates).delete()
