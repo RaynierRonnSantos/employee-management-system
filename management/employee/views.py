@@ -77,20 +77,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         if approval == 'approve':
             employee.delete()
             return Response({"message": f"{employee.name} permanently deleted"}, status=status.HTTP_200_OK)
-        return Response({"error": "HR approval required"}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['get'])
-    def attendance_summary(self, request, pk=None):
-        employee = self.get_object()
-        return Response({'message': f'Attendance summary for {employee.name}'})
-
-    @action(detail=True, methods=['patch'])
-    def reset_attendance(self, request, pk=None):
-        employee = self.get_object()
-        employee.attendance = 0
-        employee.save()
-        return Response({'message': f'Attendance reset for {employee.name}'})
-        
+        return Response({"error": "HR approval required"}, status=status.HTTP_400_BAD_REQUEST) 
 
 class SalaryViewSet(viewsets.ModelViewSet):
     queryset = SalaryHistory.objects.all()
@@ -129,7 +116,12 @@ class SalaryViewSet(viewsets.ModelViewSet):
             
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
-        return Response({"error": "New salary not provided"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+                            "error": "New salary not provided",
+                            "required_fields": {
+                                "new_salary": "New salary amount is required"
+                            }
+                        }, status=status.HTTP_400_BAD_REQUEST)
 
 class PerformanceViewSet(viewsets.ModelViewSet):
     queryset = PerformanceReview.objects.all()
@@ -153,7 +145,13 @@ class PerformanceViewSet(viewsets.ModelViewSet):
             rating = request.data.get('rating')
 
             if not review or not rating:
-                return Response({"error": "Review and rating are required"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({
+                                    "error": "Review and rating are required",
+                                    "required_fields": {
+                                        "review": "This field is required",
+                                        "rating": "On a scaling of 1 (lowest) - 10 (Highest)"
+                                    }    
+                                }, status=status.HTTP_400_BAD_REQUEST)
 
             performance = PerformanceReview.objects.create(
                 employee=employee,
@@ -290,7 +288,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         date = request.data.get('date')
         if not date:
-            return Response({"error": "Date is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                                "error": "Date is required",
+                                "required_fields": {
+                                    "date": "YYYY-MM-DD"
+                                }    
+                            }, status=status.HTTP_400_BAD_REQUEST)
 
         leave_record = Attendance.objects.create(employee=employee, date=date, status='leave')
         return Response(AttendanceSerializer(leave_record).data, status=status.HTTP_201_CREATED)
@@ -313,17 +316,57 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 {
                     "error": "Leave request not found",
                     "required_fields": {
-                        "date": "YYYY-MM-DD (e.g., 2025-03-08)",
+                        "date": "YYYY-MM-DD",
                         "approval": "approve or reject"
                     }
-            }, status=status.HTTP_404_NOT_FOUND)
+                }, status=status.HTTP_404_NOT_FOUND)
 
         if approval == "approve":
-            leave_record.status = "on leave"  # ✅ Set to "approved" instead of "leave"
+            leave_record.status = "on leave"
             leave_record.save()
             return Response({"message": "Leave approved"})
         elif approval == "reject":
             leave_record.delete()
             return Response({"message": "Leave rejected"})
         else:
-            return Response({"error": "Invalid approval status"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                                "error": "Invalid approval status",
+                                "required_fields": {
+                                    "approval": "approve or reject"
+                                }
+                            }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['delete'])
+    def delete_attendance(self, request, pk=None):
+        """Delete attendance records for a specific employee on given dates"""
+        employee = Employee.objects.filter(pk=pk).first()
+
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        dates = request.data.get('dates')  # Expecting a list of dates in 'YYYY-MM-DD' format
+
+        if not dates or not isinstance(dates, list):
+            return Response({
+                "error": "Invalid input",
+                "required_fields": {
+                    "dates": ["YYYY-MM-DD", "YYYY-MM-DD"]
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        deleted_count, _ = Attendance.objects.filter(employee=employee, date__in=dates).delete()
+
+        if deleted_count == 0:
+            return Response({"message": "No matching attendance records found"}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"message": f"Deleted {deleted_count} attendance records for {employee.name}"}, status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['delete'])
+    def delete_all_attendance(self, request):
+        """Delete all attendance records from the database"""
+        deleted_count, _ = Attendance.objects.all().delete()
+
+        if deleted_count == 0:
+            return Response({"message": "No attendance records to delete"}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"message": f"Deleted {deleted_count} attendance records"}, status=status.HTTP_204_NO_CONTENT)
