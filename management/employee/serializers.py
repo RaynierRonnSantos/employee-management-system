@@ -29,7 +29,7 @@ class SalaryHistorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_previous_salary(self, obj):
-        return f"₱{obj.new_salary:,.2f}"
+        return f"₱{obj.previous_salary:,.2f}"
 
     def get_new_salary(self, obj):
         return f"₱{obj.new_salary:,.2f}"
