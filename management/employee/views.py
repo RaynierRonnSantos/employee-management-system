@@ -20,7 +20,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         new_department = request.data.get('new_department')
         if new_department:
             employee.department = new_department
-            employee.status = 'pending_transfer'  # Add status tracking
+            employee.status = 'pending_transfer'
             employee.save()
             return Response({'status': 'Transfer requested successfully'}, status=status.HTTP_200_OK)
         return Response({'error': 'New department not provided'}, status=status.HTTP_400_BAD_REQUEST)
@@ -196,7 +196,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def employee_attendance(self, request, pk=None):
-        """Fetch attendance records for a specific employee."""
         employee = Employee.objects.filter(pk=pk).first()
 
         if not employee:
@@ -211,7 +210,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def mark_attendance(self, request, pk=None):
-        """Mark check-in or check-out for an employee"""
         employee = Employee.objects.filter(pk=pk).first()
         if not employee:
             return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -229,18 +227,16 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 "attendance": AttendanceSerializer(attendance).data
             }, status=status.HTTP_201_CREATED)
 
-        # If already checked in, mark check-out
         if attendance.check_out_time:
             return Response({"error": "Check-out already recorded"}, status=status.HTTP_400_BAD_REQUEST)
 
         attendance.check_out_time = now().time()
 
-        # Calculate overtime hours (assuming 8 hours is normal shift)
         check_in_time = attendance.check_in_time
         if check_in_time:
             time_difference = (now() - now().replace(hour=check_in_time.hour, minute=check_in_time.minute)).total_seconds()
-            hours_worked = time_difference / 3600  # Convert seconds to hours
-            overtime = max(0, hours_worked - 8)  # Subtract normal working hours
+            hours_worked = time_difference / 3600
+            overtime = max(0, hours_worked - 8)
             attendance.overtime_hours = overtime
 
         attendance.save()
@@ -252,7 +248,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def late_count(self, request, pk=None):
-        """Count the number of times an employee was late."""
         employee = Employee.objects.filter(pk=pk).first()
         
         if not employee:
@@ -263,7 +258,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def overtime_hours(self, request, pk=None):
-        """Calculate total overtime hours for an employee."""
         employee = Employee.objects.filter(pk=pk).first()
         
         if not employee:
@@ -274,7 +268,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def leave_history(self, request, pk=None):
-        """Fetch an employee's leave history."""
         employee = Employee.objects.filter(pk=pk).first()
         
         if not employee:
@@ -289,7 +282,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def request_leave(self, request, pk=None):
-        """Request leave for an employee."""
         employee = Employee.objects.filter(pk=pk).first()
         
         if not employee:
@@ -308,7 +300,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['patch'])
     def approve_leave(self, request, pk=None):
-        """Approve or reject a leave request."""
         employee = Employee.objects.filter(pk=pk).first()
 
         if not employee:
@@ -346,13 +337,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['delete'])
     def delete_attendance(self, request, pk=None):
-        """Delete attendance records for a specific employee on given dates"""
         employee = Employee.objects.filter(pk=pk).first()
 
         if not employee:
             return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        dates = request.data.get('dates')  # Expecting a list of dates in 'YYYY-MM-DD' format
+        dates = request.data.get('dates')
 
         if not dates or not isinstance(dates, list):
             return Response({
@@ -370,7 +360,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['delete'])
     def delete_all_attendance(self, request):
-        """Delete all attendance records from the database"""
         deleted_count, _ = Attendance.objects.all().delete()
 
         if deleted_count == 0:
