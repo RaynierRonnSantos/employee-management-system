@@ -3,13 +3,46 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import Employee, SalaryHistory, PerformanceReview, Attendance
-from .serializers import EmployeeSerializer, SalaryHistorySerializer, PerformanceReviewSerializer, AttendanceSerializer
+from .serializers import EmployeeSerializer, SalaryHistorySerializer, PerformanceReviewSerializer, AttendanceSerializer, RegisterSerializer, LoginSerializer, UserSerializer
 from django.utils.timezone import now
 from django.db.models import Sum
+from django.contrib.auth import authenticate, login, logout, get_user_model
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.contrib.auth.models import update_last_login
+from rest_framework_simplejwt.tokens import RefreshToken
 
+User = get_user_model()
+
+class AuthViewSet(viewsets.ViewSet):
+    permission_classes = [AllowAny]
+
+    @action(detail=False, methods=['post'])
+    def register(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "User registered successfully"}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'])
+    def login(self, request):
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = authenticate(username=serializer.validated_data['username'], password=serializer.validated_data['password'])
+            if user:
+                refresh = RefreshToken.for_user(user)
+                update_last_login(None, user)
+                return Response({
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                    'user': UserSerializer(user).data
+                }, status=status.HTTP_200_OK)
+            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return Employee.objects.filter(archived=False)
@@ -72,18 +105,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         archived_employees = Employee.objects.filter(archived=True)
         serializer = self.get_serializer(archived_employees, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    @action(detail=True, methods=['post'])
-    def permanent(self, request, pk=None):
-        employee = self.get_object()
-        approval = request.data.get('approval')
-        if approval == 'approve':
-            employee.delete()
-            return Response({"message": f"{employee.name} permanently deleted"}, status=status.HTTP_200_OK)
-        return Response({"error": "HR approval required"}, status=status.HTTP_400_BAD_REQUEST)
 
 class SalaryViewSet(viewsets.ModelViewSet):
     serializer_class = SalaryHistorySerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return SalaryHistory.objects.filter(employee__archived=False)
@@ -129,6 +154,7 @@ class SalaryViewSet(viewsets.ModelViewSet):
 
 class PerformanceViewSet(viewsets.ModelViewSet):
     serializer_class = PerformanceReviewSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
             return PerformanceReview.objects.filter(employee__archived=False)
@@ -190,6 +216,7 @@ class PerformanceViewSet(viewsets.ModelViewSet):
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     serializer_class = AttendanceSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
             return Attendance.objects.filter(employee__archived=False)

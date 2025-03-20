@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'employee',
 ]
 
@@ -132,11 +133,19 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.JSONParser',  # Parse JSON Input
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Allow API access to everyone
+        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',  # Allow API access to everyone
     ],
 }
 
+AUTH_USER_MODEL = 'employee.CustomUser'
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}

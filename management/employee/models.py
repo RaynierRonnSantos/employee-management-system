@@ -1,5 +1,34 @@
+import uuid
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 
+class CustomUser(AbstractUser):
+    employee_id = models.CharField(max_length=20, unique=True)
+
+    # Avoid reverse accessor clashes by setting related_name
+    groups = models.ManyToManyField(
+        "auth.Group",
+        related_name="customuser_groups",  # Set a unique related_name
+        blank=True,
+        help_text="The groups this user belongs to.",
+        verbose_name="groups",
+    )
+    user_permissions = models.ManyToManyField(
+        "auth.Permission",
+        related_name="customuser_permissions",  # Set a unique related_name
+        blank=True,
+        help_text="Specific permissions for this user.",
+        verbose_name="user permissions",
+    )
+
+    def save(self, *args, **kwargs):
+        if not self.employee_id:
+            self.employee_id = str(uuid.uuid4())[:8]  # Generates unique ID
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.username
+    
 class Employee(models.Model):
     name = models.CharField(max_length=100)
     department = models.CharField(max_length=100)
