@@ -389,11 +389,19 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         return Response({"message": f"Deleted {deleted_count} attendance records for {employee.name}"}, status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=False, methods=['delete'])
-    def delete_all_attendance(self, request):
-        deleted_count, _ = Attendance.objects.all().delete()
+    @action(detail=True, methods=['delete'])
+    def delete_all_attendance(self, request, pk=None):
+        employee = Employee.objects.filter(pk=pk).first()
+
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Delete all attendance records for the given employee
+        deleted_count, _ = Attendance.objects.filter(employee=employee).delete()
 
         if deleted_count == 0:
-            return Response({"message": "No attendance records to delete"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "No attendance records found for this employee"}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response({"message": f"Deleted {deleted_count} attendance records"}, status=status.HTTP_204_NO_CONTENT)
+        return Response({
+            "message": f"Deleted {deleted_count} attendance records for {employee.name}"
+        }, status=status.HTTP_204_NO_CONTENT)
