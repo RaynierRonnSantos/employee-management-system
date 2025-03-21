@@ -70,14 +70,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response({'status': 'Transfer rejected'}, status=status.HTTP_200_OK)
         return Response({'error': 'Invalid approval status'}, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['patch'])
     def deactivate(self, request, pk=None):
         employee = self.get_object()
         employee.active = False
         employee.save()
         return Response({"message": f"{employee.name} deactivated"})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['patch'])
     def restore(self, request, pk=None):
         employee = self.get_object()
         employee.active = True
@@ -236,7 +236,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
-    def mark_attendance(self, request, pk=None):
+    def check_in(self, request, pk=None):
         employee = Employee.objects.filter(pk=pk).first()
         if not employee:
             return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -248,11 +248,25 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             defaults={'check_in_time': now().time(), 'status': 'Present'}
         )
 
-        if created:
-            return Response({
-                "message": "Check-in recorded",
-                "attendance": AttendanceSerializer(attendance).data
-            }, status=status.HTTP_201_CREATED)
+        if not created:
+            return Response({"error": "Check-in already recorded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "message": "Check-in recorded",
+            "attendance": AttendanceSerializer(attendance).data
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def check_out(self, request, pk=None):
+        employee = Employee.objects.filter(pk=pk).first()
+        if not employee:
+            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        today = now().date()
+        attendance = Attendance.objects.filter(employee=employee, date=today).first()
+
+        if not attendance:
+            return Response({"error": "No check-in record found"}, status=status.HTTP_400_BAD_REQUEST)
 
         if attendance.check_out_time:
             return Response({"error": "Check-out already recorded"}, status=status.HTTP_400_BAD_REQUEST)
@@ -272,16 +286,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             "message": "Check-out recorded",
             "attendance": AttendanceSerializer(attendance).data
         }, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['get'])
-    def late_count(self, request, pk=None):
-        employee = Employee.objects.filter(pk=pk).first()
-        
-        if not employee:
-            return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        late_days = Attendance.objects.filter(employee=employee, status='late').count()
-        return Response({"late_count": late_days})
 
     @action(detail=True, methods=['get'])
     def overtime_hours(self, request, pk=None):

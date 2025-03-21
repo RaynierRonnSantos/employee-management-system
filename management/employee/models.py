@@ -33,7 +33,7 @@ class Employee(models.Model):
     name = models.CharField(max_length=100)
     department = models.CharField(max_length=100)
     position = models.CharField(max_length=100)
-    salary = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, default=0.0)
+    salary = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, default=20000.00)
     active = models.BooleanField(default=True)
     archived = models.BooleanField(default=False)
     
