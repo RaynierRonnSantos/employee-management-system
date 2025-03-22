@@ -215,7 +215,7 @@ class PerformanceViewSet(viewsets.ModelViewSet):
         except Employee.DoesNotExist:
             return Response({"error": "Employee not found"}, status=status.HTTP_404_NOT_FOUND)
         except PerformanceReview.DoesNotExist:
-            return Response({"error": "Review not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"review_id": ["This field is required."]}, status=status.HTTP_404_NOT_FOUND)
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     serializer_class = AttendanceSerializer
