@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -93,13 +93,16 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['patch'])
     def unarchive(self, request, pk=None):
-        employee = self.get_object()
+        # Fetch the employee without applying the default queryset filter
+        employee = get_object_or_404(Employee, pk=pk)
+
         if employee.archived:
             employee.archived = False
             employee.save()
             return Response({"message": f"{employee.name} unarchived successfully"}, status=status.HTTP_200_OK)
+        
         return Response({"error": f"{employee.name} is not archived"}, status=status.HTTP_400_BAD_REQUEST)
-    
+
     @action(detail=False, methods=['get'])
     def archived(self, request):
         archived_employees = Employee.objects.filter(archived=True)
