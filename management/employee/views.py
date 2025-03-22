@@ -56,7 +56,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             employee.status = 'pending_transfer'
             employee.save()
             return Response({'status': 'Transfer requested successfully'}, status=status.HTTP_200_OK)
-        return Response({'error': 'New department not provided'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'new_department': ['This field is required']}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['patch'])
     def approve_transfer(self, request, pk=None):
